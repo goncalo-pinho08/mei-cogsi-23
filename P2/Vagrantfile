@@ -1,0 +1,57 @@
+Vagrant.configure("2") do |config|
+    # monitor machine with nagios installed
+    config.vm.define "monitor"  do |monitor|
+        #define a status mac address to be used by the monitor machine
+        monitor.vm.base_mac = "080027E0E0E0"
+        monitor.vm.hostname = "monitor"
+        monitor.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        monitor.vm.box_version = "20221120.20.40.0"
+        monitor.vm.box_download_insecure = true
+        monitor.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+        
+        monitor.vm.provision "shell", inline: <<-SHELL
+            sudo apt-get update
+            #installing utils
+            sudo apt-get install -y arp-scan inetutils-ping nano gzip zip unzip bzip2 wget iputils-ping
+            sudo apt-get install -y openjdk-8-jdk ufw autoconf gcc libc6 libmcrypt-dev make libssl-dev bc gawk dc build-essential snmp libnet-snmp-perl gettext apache2 php
+        SHELL
+        monitor.vm.provision "shell", path: "scripts/monitor/install_send_email.sh"
+        monitor.vm.provision "shell", path: "scripts/monitor/install_nagios.sh"
+        monitor.vm.provision "shell", path: "scripts/monitor/install_nsca.sh"
+
+        # Redirect port http 80 to 8080 on host to access nagios web interface
+        monitor.vm.network "forwarded_port", guest: 80, host: 8081
+        # Share config file of nagios to host machine | config.vm.synced_folder "host dir", "VM dir"
+        monitor.vm.synced_folder "monitor/nagios/etc", "/usr/local/nagios/etc"
+    end
+
+    config.vm.define "server"  do |server|
+        server.vm.base_mac = "080027E0E0E2"
+        server.vm.hostname = "server"
+        server.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        server.vm.box_version = "20221120.20.40.0"
+        server.vm.box_download_insecure = true
+        server.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+        #commands to install nagios on the machine
+        server.vm.provision "shell", inline: <<-SHELL
+            #installing dependencies
+            sudo apt-get update             
+            sudo apt-get install -y arp-scan nano zip inetutils-ping unzip bzip2 gzip openjdk-8-jdk ufw autoconf automake openssl gcc libc6 libmcrypt-dev make libssl-dev wget bc gawk dc build-essential snmp libnet-snmp-perl gettext
+            #installing tomcat
+            sudo apt-get -y install tomcat9
+        SHELL
+        server.vm.provision "shell", path: "scripts/server/install_nrpe.sh"
+        server.vm.provision "shell", path: "scripts/server/install_send_nsca.sh"
+        server.vm.synced_folder "server/nagios/etc", "/usr/local/nagios/etc"
+    end 
+end

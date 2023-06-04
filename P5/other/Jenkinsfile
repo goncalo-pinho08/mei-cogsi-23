@@ -1,0 +1,45 @@
+pipeline {
+    agent any
+
+    stages {
+      stage('Checkout') {
+          steps {
+              echo 'Checking out...'
+              git credentialsId: 'git-credentials', url: 'https://goncalo-pinho@bitbucket.org/goncalo-pinho/todd-1220257.git'
+          }
+      }
+      stage('Build') {
+          steps {
+              echo 'Building...'
+              sh './gradlew clean build'
+          }
+      }
+      stage('Jenkins Archiving') {
+          steps {
+              echo 'Jenkins Archiving...'
+              archiveArtifacts 'build/libs/*'
+          }
+      }
+
+    stage('Nexus Archiving') {
+      steps {
+        echo 'Nexus Archiving...'
+        sh "./gradlew uploadArchives -PnexusAddress='${env.NEXUS_ADDRESS}'"
+      }
+    }
+
+      stage('User Confirmation') {
+            steps {
+                input(message: 'Do you want to deploy this version?', ok: 'Proceed')
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo 'Deploying...'
+                sh 'ansible-playbook -i ansible/hosts ansible/playbooks/deployplaybook.yml'
+            }
+        }
+
+    }
+}

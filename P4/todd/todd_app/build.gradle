@@ -1,0 +1,115 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'maven'
+
+group = 'pt.isep.cogsi'
+//version = '1.0.0-SNAPSHOT'
+version = '1.0.1'
+
+repositories {
+  maven {
+    url "${nexusUrl}/repository/maven-public"
+  }
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: "${nexusUrl}/repository/maven-releases") {
+                authentication(userName: nexusUsername, password: nexusPassword)
+            }
+            snapshotRepository(url: "${nexusUrl}/repository/maven-snapshots") {
+                authentication(userName: nexusUsername, password: nexusPassword)
+            }
+        }
+    }
+}
+
+// Execute the Server (local JMX only)
+task runServer(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.Server'
+    if (project.hasProperty("appArgs")) {
+        jvmArgs Eval.me(appArgs)
+    }
+	else {
+	   jvmArgs = ['-Dcom.sun.management.jmxremote']
+	}
+
+   classpath = sourceSets.main.runtimeClasspath
+}
+
+// Execute the Server (enable remote JMX)
+task runServerRemote(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.Server'
+    if (project.hasProperty("appArgs")) {
+        jvmArgs Eval.me(appArgs)
+    }
+	else {
+	   jvmArgs = ['-Dcom.sun.management.jmxremote.port=10500',
+              '-Dcom.sun.management.jmxremote.rmi.port=10500',
+              '-Dcom.sun.management.jmxremote.authenticate=false',
+              '-Dcom.sun.management.jmxremote.ssl=false',
+              '-Djava.rmi.server.hostname=0.0.0.0',
+              '-Dcom.sun.management.jmxremote.host=0.0.0.0']
+    }
+   classpath = sourceSets.main.runtimeClasspath
+}
+
+// Execute the Client
+task runClient(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.ClientApp'
+    if (project.hasProperty("appArgs")) {
+        args Eval.me(appArgs)
+    }
+	else {
+   		args = ['10.6.0.3']
+   }
+   classpath = sourceSets.main.runtimeClasspath
+}
+
+// Execute the ClientApp2
+task runClient2(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.ClientApp2'
+    if (project.hasProperty("appArgs")) {
+        args Eval.me(appArgs)
+    }
+	else {
+     args = ['127.0.0.1:10500']
+     }
+   classpath = sourceSets.main.runtimeClasspath
+}
+
+// Execute the ClientApp3
+task runClient3(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.ClientApp3'
+    if (project.hasProperty("appArgs")) {
+        args Eval.me(appArgs)
+    }
+	else {
+   		args = ['10.6.0.3:10500']
+   	}
+   classpath = sourceSets.main.runtimeClasspath
+}
+
+// Execute the ClientGrow
+task runMonitor(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.JMXAvailableSessionsMonitor'
+    if (project.hasProperty("appArgs")) {
+        args Eval.me(appArgs)
+    }
+    else {
+           args = ['10.6.0.3:10500']
+   }
+   classpath = sourceSets.main.runtimeClasspath
+}
+
+task runMonitorTomcat(type:JavaExec, dependsOn: classes) {
+   main = 'net.jnjmx.todd.JMXTomcatHeapMemory'
+    if (project.hasProperty("appArgs")) {
+        args Eval.me(appArgs)
+    }
+    else {
+           args = ['10.6.0.4:6000']
+   }
+   classpath = sourceSets.main.runtimeClasspath
+}

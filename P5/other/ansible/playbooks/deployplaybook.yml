@@ -1,0 +1,190 @@
+---
+- name: Tomcat tasks
+  hosts: servers
+  become: true
+  tasks:
+    - name: Ensure that java11 is installed
+      become: true
+      apt:
+        name: openjdk-11-jdk
+        state: present
+    - name: Ensure that tomcat9 is installed
+      become: true
+      apt:
+        name: tomcat9
+        state: present
+
+    - name: Check if setenv.sh file exists
+      stat:
+        path: /usr/share/tomcat9/bin/setenv.sh
+      register: setenv_file
+
+    - name: Create setenv.sh file
+      vars:
+        jmx_port: 6000
+        tomcat_address: "{{ ansible_default_ipv4.address }}"
+      become: true
+      copy:
+        dest: /usr/share/tomcat9/bin/setenv.sh
+        content: |
+          #!/bin/bash
+          CATALINA_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port={{ jmx_port }} -Dcom.sun.management.jmxremote.rmi.port={{ jmx_port }} -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname={{ tomcat_address }}"
+        mode: '0755'
+      register: create_setenv_file
+
+    - name: Restarting tomcat9 to apply changes
+      become: true
+      shell: systemctl restart tomcat9
+      when: create_setenv_file.changed
+
+- name: todd
+  hosts: servers
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Ensure that lxml is installed
+      apt:
+        name: python3-lxml
+        state: present
+
+    - name: Ensure that arp-scan is installed
+      apt:
+        name: arp-scan
+        state: present
+
+    - name: Get monitor address
+      shell: arp-scan --interface=eth0 --localnet | awk '/08:00:27:e0:e0:e0/ {print $1}'
+      register: monitor_address
+
+    - name: Create folder
+      file:
+        path: /usr/local/todd
+        state: directory
+
+    - name: Create folder
+      file:
+        path: /usr/local/todd/scripts
+        state: directory
+
+    - name: Transfer ToddService.sh and update file
+      template:
+        src: ../boilerplates/ToddService_template.j2
+        dest: /usr/local/todd/scripts/ToddService.sh
+
+    - name: Copy ToddService.service to systemd directory
+      template:
+        src: ../../scripts/ToddService.service
+        dest: /etc/systemd/system/ToddService.service
+
+    - name: Set permissions for ToddService.service
+      file:
+        path: /etc/systemd/system/ToddService.service
+        mode: "0755"
+
+    - name: Set permissions for ToddService.sh
+      file:
+        path: /usr/local/todd/scripts/ToddService.sh
+        mode: "0755"
+
+    - name: Copy shell script to restart tomcat
+      template:
+        src: ../../scripts/restart_tomcat.sh
+        dest: /usr/local/nagios/libexec/restart_tomcat.sh
+        mode: 'u+x,g+x,o+x'
+
+    - name: Copy shell script to restart todd
+      template:
+        src: ../../scripts/restart_todd.sh
+        dest: /usr/local/nagios/libexec/restart_todd.sh
+        mode: 'u+x,g+x,o+x'
+
+    - name: Replace nrpe.cfg for the one with the needed scripts
+      template:
+        src: ../boilerplates/nrpe_template.j2
+        dest: /usr/local/nagios/etc/nrpe.cfg
+
+    - name: Download an artifact from a private repository requiring authentication
+      community.general.maven_artifact:
+        group_id: pt.isep.cogsi
+        artifact_id: cogsi
+        repository_url: 'http://{{ monitor_address.stdout }}:9081/repository/todd/'
+        username: admin
+        password: admin
+        dest: /usr/local/todd/todd.jar
+
+    - name: Change permissions for todd.jar
+      command: chmod 777 /usr/local/todd/todd.jar
+
+    - name: Reload daemon
+      shell: systemctl daemon-reload
+
+    - name: Start ToddService service
+      service:
+        name: ToddService
+        state: started
+
+    - name: Enable ToddService service
+      service:
+        name: ToddService
+        enabled: true
+
+    - name: Restart nrpe service
+      service:
+        name: nrpe
+        state: restarted
+
+    - name: Restart ToddService service
+      service:
+        name: ToddService
+        state: restarted
+
+    - name: Create a host file to monitor the server
+      template:
+        src: ../boilerplates/hostmonitor_template.j2  # Replace with the path to your template file
+        dest: /usr/local/nagios/etc/objects/{{ inventory_hostname }}.cfg  # Replace with the destination path on the control node
+      delegate_to: monitor
+
+    - name: Add line to the end of the file
+      lineinfile:
+        path: /usr/local/nagios/etc/nagios.cfg
+        line: "cfg_file=/usr/local/nagios/etc/objects/{{ inventory_hostname }}.cfg"
+        insertafter: EOF
+      delegate_to: monitor
+
+    - name: Copy nagios commands
+      template:
+        src: ../files/commands.cfg
+        dest: /usr/local/nagios/etc/objects/commands.cfg
+      delegate_to: monitor
+
+- name: Changes on monitor
+  hosts: monitor
+  become: true
+  tasks:
+    - name: Ensure that java11 is installed
+      apt:
+        name: python3-lxml
+        state: present
+
+    - name: Download an artifact from a private repository requiring authentication
+      community.general.maven_artifact:
+        group_id: pt.isep.cogsi
+        artifact_id: cogsi
+        repository_url: 'http://{{ ansible_default_ipv4.address }}:9081/repository/todd'
+        username: admin
+        password: admin
+        dest: /usr/local/nagios/libexec/todd.jar
+
+    - name: Change permissions for todd.jar
+      command: chmod 777 /usr/local/nagios/libexec/todd.jar
+
+    - name: Replace nsca.cfg
+      template:
+        src: ../boilerplates/nsca_template.j2
+        dest: /usr/local/nagios/etc/nsca.cfg
+
+    - name: Restart nagios service
+      service:
+        name: nagios
+        state: restarted

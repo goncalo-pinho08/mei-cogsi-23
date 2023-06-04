@@ -1,0 +1,32 @@
+Vagrant.configure("2") do |config|
+    # zabbix machine with nagios installed
+    config.vm.define "zabbix"  do |zabbix|
+        zabbix.vm.hostname = "zabbix"
+        zabbix.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        zabbix.vm.box_version = "20221120.20.40.0"
+        zabbix.vm.box_download_insecure = true
+        zabbix.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+        # Redirect port http 80 to 8080 on host to access nagios web interface
+        zabbix.vm.network "forwarded_port", guest: 80, host: 8080
+        zabbix.vm.provision "shell", path: "./scripts/zabbix_installer.sh", run: "once"
+        zabbix.vm.provision "shell", path: "./scripts/zabbix_restart.sh", run: "always"
+    end
+    config.vm.define "server"  do |server|
+        server.vm.hostname = "server"
+        server.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        server.vm.box_version = "20221120.20.40.0"
+        server.vm.box_download_insecure = true
+        server.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+        server.vm.provision "shell", path: "./scripts/tomcat_installer.sh", run: "once"
+    end
+end

@@ -1,0 +1,16 @@
+# BEGIN ANSIBLE MANAGED BLOCK - DO NOT EDIT THIS BLOCK
+[monitor]
+monitor ansible_host=172.16.244.145
+[servers]
+server1 ansible_host=172.16.244.130
+server2 ansible_host=172.16.244.142
+# END ANSIBLE MANAGED BLOCK - DO NOT EDIT THIS BLOCK
+#host for localhost
+
+[servers:vars]
+ansible_user=vagrant
+ansible_password=vagrant
+
+[monitor:vars]
+ansible_user=vagrant
+ansible_password=vagrant

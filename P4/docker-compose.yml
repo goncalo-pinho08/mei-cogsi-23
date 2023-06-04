@@ -1,0 +1,59 @@
+version: '3'
+services:
+  nagios:
+    cap_add:
+      - NET_ADMIN
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nagios:/opt/nagios/etc
+    command: /bin/sh -c "ip route add 10.6.0.0/16 via 10.5.0.5 && /usr/local/bin/start_nagios && tail -f /dev/null"
+    networks:
+      monitor:
+        ipv4_address: 10.5.0.3
+  todd:
+    build: todd
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "10500:10500"
+      - "3006:3006" 
+    networks:
+      apps:
+        ipv4_address: 10.6.0.3
+    command: /bin/sh -c "ip route add 10.5.0.0/16 via 10.6.0.2 && /usr/local/nagios/bin/nrpe -c /usr/local/nagios/etc/nrpe.cfg -d && systemctl start ToddService && systemctl start ssh && tail -f /dev/null"
+  tomcat:
+    build: tomcat
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8082:8080"
+      - "6000:6000"
+    networks:
+      apps:
+        ipv4_address: 10.6.0.4
+    command: /bin/sh -c "ip route add 10.5.0.0/16 via 10.6.0.2 && /usr/local/nagios/bin/nrpe -c /usr/local/nagios/etc/nrpe.cfg -d && systemctl start tomcat9 && systemctl start ssh && tail -f /dev/null"
+  router:
+    image: ubuntu:latest
+    command: tail -f /dev/null
+    cap_add:
+      - NET_ADMIN
+    networks:
+      monitor:
+        ipv4_address: 10.5.0.5
+      apps:
+        ipv4_address: 10.6.0.2
+networks:
+  monitor:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.5.0.0/16
+         gateway: 10.5.0.1
+  apps:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.6.0.0/16
+         gateway: 10.6.0.1

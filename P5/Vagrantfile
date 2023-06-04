@@ -1,0 +1,87 @@
+Vagrant.configure("2") do |config|
+    # monitor machine with nagios installed
+    config.vm.define "monitor"  do |monitor|
+        #define a status mac address to be used by the monitor machine
+        monitor.vm.base_mac = "080027E0E0E0"
+        monitor.vm.hostname = "monitor"
+        monitor.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        monitor.vm.box_version = "20221120.20.40.0"
+        monitor.vm.box_download_insecure = true
+        monitor.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+        monitor.vm.provision "shell", path: "scripts/monitor/install_nexus.sh"
+        monitor.vm.provision "shell", path: "scripts/monitor/install_send_email.sh"
+        monitor.vm.provision "shell", path: "scripts/monitor/install_nagios.sh"
+        monitor.vm.provision "shell", path: "scripts/monitor/install_nsca.sh"
+
+        # Redirect port http 80 to 8080 on host to access nagios web interface
+        monitor.vm.network "forwarded_port", guest: 80, host: 8080
+        #redirect the port 9081 to 9081 on host to access nexus web interface
+        monitor.vm.network "forwarded_port", guest: 9081, host: 9081
+
+        # share ansible folder with the host
+        #monitor.vm.synced_folder "shared/monitor/ansible", "/etc/ansible/"
+        # share nagios files with the host
+        #monitor.vm.synced_folder "shared/monitor/nagios", "/usr/local/nagios/etc/"
+    end
+
+    config.vm.define "jenkins"  do |jenkins|
+        jenkins.vm.base_mac = "080027E0E2E4"
+        jenkins.vm.hostname = "jenkins"
+        jenkins.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        jenkins.vm.box_version = "20221120.20.40.0"
+        jenkins.vm.box_download_insecure = true
+        jenkins.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+
+        jenkins.vm.provision "shell", path: "scripts/monitor/install_ansible.sh"
+        jenkins.vm.provision "shell", path: "scripts/monitor/install_jenkins.sh"
+
+        # Redirect port 8080 to 8080 on host to access jenkins web interface
+        jenkins.vm.network "forwarded_port", guest: 8080, host: 8081
+    end 
+
+    config.vm.define "server_one"  do |server_one|
+        server_one.vm.base_mac = "080027E0E0E2"
+        server_one.vm.hostname = "server"
+        server_one.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        server_one.vm.box_version = "20221120.20.40.0"
+        server_one.vm.box_download_insecure = true
+        server_one.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+
+        server_one.vm.provision "shell", path: "scripts/server/install_nrpe.sh"
+        server_one.vm.provision "shell", path: "scripts/server/install_send_nsca.sh"
+        server_one.vm.provision "shell", path: "scripts/server/install_tomcat.sh"
+    end 
+
+    config.vm.define "server_two"  do |server_two|
+        server_two.vm.base_mac = "080027E0E0E4"
+        server_two.vm.hostname = "server"
+        server_two.vm.box = "starboard/ubuntu-arm64-20.04.5"
+        server_two.vm.box_version = "20221120.20.40.0"
+        server_two.vm.box_download_insecure = true
+        server_two.vm.provider "vmware_desktop"  do |v|
+            v.ssh_info_public = true #Allowing to get information of the virtual machine SSH key
+            v.gui = true #In Mac computer with Apple Silicon processors we need to have GUI enabled otherwise it doesn't work.
+            v.linked_clone = false
+            v.vmx["ethernet0.virtualdev"] = "vmxnet3" #Hypervisor network driver that is optimized to provide high performance, high throughput, and minimal latency
+        end
+
+        server_two.vm.provision "shell", path: "scripts/server/install_nrpe.sh"
+        server_two.vm.provision "shell", path: "scripts/server/install_send_nsca.sh"
+        server_two.vm.provision "shell", path: "scripts/server/install_tomcat.sh"
+    end 
+end

@@ -1,0 +1,36 @@
+version: '3'
+services:
+  nagios:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nagios:/opt/nagios/etc
+    networks:
+      cogsi:
+        ipv4_address: 10.5.0.5
+  todd:
+    build: todd
+    ports:
+      - "10500:10500"
+      - "3006:3006"
+    networks:
+      cogsi:
+        ipv4_address: 10.5.0.6
+    command: /bin/sh -c "/usr/local/nagios/bin/nrpe -c /usr/local/nagios/etc/nrpe.cfg -d && systemctl start ToddService && systemctl start ssh && tail -f /dev/null"
+  tomcat:
+    build: tomcat
+    ports:
+      - "8082:8080"
+      - "6000:6000"
+    networks:
+      cogsi:
+        ipv4_address: 10.5.0.7
+    command: /bin/sh -c "/usr/local/nagios/bin/nrpe -c /usr/local/nagios/etc/nrpe.cfg -d && systemctl start tomcat9 && systemctl start ssh && tail -f /dev/null"
+networks:
+  cogsi:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.5.0.0/16
+         gateway: 10.5.0.1
